@@ -8,10 +8,22 @@ from src.messages import format_message
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL = ROOT / "models" / "cloud_clf.joblib"
+_clf = None
+
+
+def _get_clf():
+    global _clf
+    if _clf is None:
+        if not MODEL.exists():
+            raise FileNotFoundError(
+                f"Model not found: {MODEL}. Run: python3 -m src.train"
+            )
+        _clf = load(MODEL)["model"]
+    return _clf
+
 
 def predict_path(path: Path) -> str:
-    bundle = load(MODEL)
-    clf = bundle["model"]
+    clf = _get_clf()
     feats = extract_features(path)
     period = "day" if feats["is_day"] >= 0.5 else "night"
     x = feature_vector(feats).reshape(1, -1)
