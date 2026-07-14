@@ -1,9 +1,7 @@
-"""Simple web UI: upload a photo → cloud / day-night result.
-
-Hugging Face Spaces imports `demo` from this module (via root app.py).
-"""
+"""Simple web UI: upload a photo → cloud / day-night result."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import gradio as gr
@@ -54,8 +52,10 @@ demo = build_demo()
 
 
 def main() -> None:
-    # Local: share=True creates a temporary public *.gradio.live link.
-    demo.launch(server_name="0.0.0.0", server_port=7861, share=True)
+    port = int(os.environ.get("PORT", "7861"))
+    # share=True only for local ad-hoc public tunnels; cloud hosts set PORT.
+    share = os.environ.get("GRADIO_SHARE", "").lower() in {"1", "true", "yes"}
+    demo.launch(server_name="0.0.0.0", server_port=port, share=share)
 
 
 if __name__ == "__main__":
