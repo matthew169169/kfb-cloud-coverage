@@ -3,7 +3,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 image/
-models/*.joblib
 data/labels.csv
 .venv/
 venv/
+*.docx
+~$*
+

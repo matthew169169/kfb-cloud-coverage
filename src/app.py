@@ -1,4 +1,7 @@
-"""Simple web UI: upload a photo → cloud / day-night result."""
+"""Simple web UI: upload a photo → cloud / day-night result.
+
+Hugging Face Spaces imports `demo` from this module (via root app.py).
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -26,9 +29,9 @@ def analyze(image_path: str | None) -> str:
         return f"Could not analyze this image: {e}"
 
 
-def main() -> None:
+def build_demo() -> gr.Blocks:
     examples = [p for p in EXAMPLES if Path(p).exists()]
-    demo = gr.Interface(
+    return gr.Interface(
         fn=analyze,
         inputs=gr.Image(
             type="filepath",
@@ -45,7 +48,14 @@ def main() -> None:
         examples=examples or None,
         flagging_mode="never",
     )
-    demo.launch(server_name="127.0.0.1", server_port=7861, inbrowser=True)
+
+
+demo = build_demo()
+
+
+def main() -> None:
+    # Local: share=True creates a temporary public *.gradio.live link.
+    demo.launch(server_name="0.0.0.0", server_port=7861, share=True)
 
 
 if __name__ == "__main__":

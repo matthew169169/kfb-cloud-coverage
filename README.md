@@ -1,33 +1,42 @@
+---
+title: KFB Cloud Coverage
+emoji: ☁️
+colorFrom: blue
+colorTo: slate
+sdk: gradio
+sdk_version: 5.49.1
+app_file: app.py
+pinned: false
+license: mit
+short_description: Detect if a hill weather camera is inside cloud (~150 m).
+---
+
 # KFB cloud coverage
 
-Detect whether the Kadoorie Farm webcam is inside cloud (day/night) and emit a cloud-base message relative to camera altitude 150 m.
+Upload a Hong Kong hill weather-camera photo (e.g. Kadoorie Farm).  
+The app tells you **day/night** (from image brightness) and whether the camera is **inside cloud**, with a cloud-base message relative to **~150 m** camera altitude.
 
-## Setup
+## Use online
+
+This Space is the public app — open the Space page and upload a photo. No install needed.
+
+## Run locally
+
 ```bash
 python3 -m pip install -r requirements.txt
-```
-
-## Web UI（上传照片）
-```bash
 python3 -m src.app
 ```
-浏览器会打开页面：上传照片即可看到日夜 + 是否在云内的结果。
 
-## Pipeline
+## Train / retrain (optional)
+
+Needs a local `image/` folder of KFB JPEGs:
+
 ```bash
 python3 -m src.auto_label
 python3 -m src.train
-python3 -m src.predict image/imgKFB_160101_1200.jpg
-```
-
-（可选）改正 `data/labels.csv` 的 `label` 列（`inside_cloud` | `not_inside`）后再跑 `train`。
-
-## Tests
-```bash
-python3 -m pytest -v
 ```
 
 ## Notes
-- `image/` holds local KFB JPEGs (gitignored).
-- Heuristic labels are seeds — spot-check before trusting metrics.
-- Model artifact: `models/cloud_clf.joblib` (gitignored; regenerate with train).
+
+- Day/night uses photo brightness only (not the filename).
+- Bundled model: `models/cloud_clf.joblib` (trained on heuristic seed labels; spot-check before operational use).
