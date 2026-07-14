@@ -14,5 +14,7 @@ def test_predict_night_and_day():
     mn = predict_path(night)
     md = predict_path(day)
     assert "150 m" in mn and "150 m" in md
+    assert "(night)" in mn
+    assert "(day)" in md
     assert mn.startswith("Camera is inside") or mn.startswith("I am not inside")
     assert md.startswith("Camera is inside") or md.startswith("I am not inside")

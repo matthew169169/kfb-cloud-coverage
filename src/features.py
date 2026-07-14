@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-DAY_HOUR_START = 7
-DAY_HOUR_END = 18
-DAY_BRIGHT_MIN = 40.0
+# Image-only day/night: mean brightness after cropping timestamp banner.
+# KFB day scenes are typically >140; night (even with city lights) usually <60.
+DAY_BRIGHT_MIN = 80.0
 
 FEATURE_NAMES = [
     "brightness_mean",
@@ -19,25 +19,26 @@ FEATURE_NAMES = [
 
 
 def parse_timestamp(name: str) -> tuple[int, int]:
+    """Optional helper for filenames; not used for day/night."""
     stem = Path(name).stem  # imgKFB_160101_0100
     hhmm = stem.split("_")[-1]
     return int(hhmm[:2]), int(hhmm[2:4])
 
 
-def is_day(hour: int, mean_brightness: float) -> bool:
-    return DAY_HOUR_START <= hour < DAY_HOUR_END and mean_brightness >= DAY_BRIGHT_MIN
+def is_day(mean_brightness: float) -> bool:
+    """Day/night from photo brightness only (no filename)."""
+    return mean_brightness >= DAY_BRIGHT_MIN
 
 
 def load_rgb(path: Path) -> np.ndarray:
     img = Image.open(path).convert("RGB")
     arr = np.asarray(img, dtype=np.float32)
-    # crop top-left timestamp banner (~8% height, full width ok to crop top strip)
+    # crop top timestamp banner (~8% height)
     h = arr.shape[0]
     return arr[int(h * 0.08) :, :, :]
 
 
 def _edge_density(gray: np.ndarray) -> float:
-    # simple Laplacian magnitude mean
     g = gray
     up = np.roll(g, 1, 0)
     down = np.roll(g, -1, 0)
@@ -49,12 +50,10 @@ def _edge_density(gray: np.ndarray) -> float:
 
 def extract_features(path: Path | str) -> dict[str, float]:
     path = Path(path)
-    hour, _ = parse_timestamp(path.name)
     rgb = load_rgb(path)
     gray = rgb.mean(axis=2)
     bright_mean = float(gray.mean())
     bright_std = float(gray.std())
-    # saturation approx: max-min per pixel / 255
     cmax = rgb.max(axis=2)
     cmin = rgb.min(axis=2)
     sat = float(((cmax - cmin) / 255.0).mean())
@@ -63,9 +62,8 @@ def extract_features(path: Path | str) -> dict[str, float]:
     lower = gray[mid:].mean()
     upper_lower = float(abs(upper - lower) / 255.0)
     edge = _edge_density(gray)
-    # night lights: fraction of pixels above high threshold
     bright_spot_ratio = float((gray > 200).mean())
-    day = is_day(hour, bright_mean)
+    day = is_day(bright_mean)
     return {
         "brightness_mean": bright_mean,
         "brightness_std": bright_std,
