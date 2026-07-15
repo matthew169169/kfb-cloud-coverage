@@ -59,4 +59,5 @@ python3 -m src.train
 
 - Day/night uses photo brightness only (not the filename).
 - Bundled model: `models/cloud_clf.joblib` (heuristic seed labels; spot-check before operational use).
-- Render free instances are ~512MB RAM — Gradio often OOM; production entrypoint is `src.web`.
+- Render free instances are ~512MB RAM. Runtime uses a tiny JSON logistic model
+  (no scikit-learn) via `python -m src.web`. Redeploy after pulling latest `main`.
