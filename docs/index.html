@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>KFB Cloud Coverage</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 36rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.45; }
+    h1 { font-size: 1.35rem; margin-bottom: 0.35rem; }
+    p.sub { color: #444; margin-top: 0; }
+    .box { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1.25rem 0; }
+    input[type=file] { width: 100%; }
+    button { margin-top: 0.75rem; padding: 0.55rem 1rem; font-size: 1rem; cursor: pointer; }
+    .result { background: #f4f7fb; border-left: 4px solid #2b6cb0; padding: 0.85rem 1rem; margin-top: 1rem; white-space: pre-wrap; }
+    .err { background: #fff5f5; border-left-color: #c53030; }
+    .note { font-size: 0.9rem; color: #555; }
+    img.preview { max-width: 100%; margin-top: 0.75rem; border-radius: 6px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>KFB Cloud Coverage</h1>
+  <p class="sub">Upload a weather-camera photo. Analysis runs <strong>on your device</strong> in the browser — nothing is uploaded to a server.</p>
+
+  <div class="box">
+    <label for="photo">Photo</label><br/>
+    <input id="photo" type="file" accept="image/*"/>
+    <br/>
+    <button id="go" type="button">Analyze</button>
+    <img id="preview" class="preview" alt="preview"/>
+  </div>
+
+  <div id="out" class="result" style="display:none"></div>
+  <p class="note">Public page via GitHub Pages. Model: logistic regression (~150 m camera altitude).</p>
+
+  <script src="app.js"></script>
+</body>
+</html>
