@@ -4,8 +4,8 @@ import numpy as np
 from PIL import Image
 
 # Image-only day/night: mean brightness after cropping timestamp banner.
-# KFB day scenes are typically >140; night (even with city lights) usually <60.
 DAY_BRIGHT_MIN = 80.0
+MAX_SIDE = 640
 
 FEATURE_NAMES = [
     "brightness_mean",
@@ -20,7 +20,7 @@ FEATURE_NAMES = [
 
 def parse_timestamp(name: str) -> tuple[int, int]:
     """Optional helper for filenames; not used for day/night."""
-    stem = Path(name).stem  # imgKFB_160101_0100
+    stem = Path(name).stem
     hhmm = stem.split("_")[-1]
     return int(hhmm[:2]), int(hhmm[2:4])
 
@@ -32,10 +32,9 @@ def is_day(mean_brightness: float) -> bool:
 
 def load_rgb(path: Path) -> np.ndarray:
     img = Image.open(path).convert("RGB")
-    # Downscale large uploads — big win for Render free-tier RAM.
-    img.thumbnail((640, 640))
+    # Always downscale — must match training and browser.
+    img.thumbnail((MAX_SIDE, MAX_SIDE))
     arr = np.asarray(img, dtype=np.float32)
-    # crop top timestamp banner (~8% height)
     h = arr.shape[0]
     return arr[int(h * 0.08) :, :, :]
 

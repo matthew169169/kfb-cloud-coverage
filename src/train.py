@@ -1,4 +1,4 @@
-"""Train classifiers; save a tiny JSON logistic model for low-RAM web deploy."""
+"""Train logistic model; save tiny JSON for browser + low-RAM deploy."""
 from __future__ import annotations
 
 import csv
@@ -16,6 +16,7 @@ from src.features import FEATURE_NAMES
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels.csv"
 MODEL_JSON = ROOT / "models" / "cloud_logreg.json"
+DOCS_JSON = ROOT / "docs" / "cloud_logreg.json"
 
 
 def _date_key(filename: str) -> str:
@@ -48,7 +49,12 @@ def main() -> None:
             ("scaler", StandardScaler()),
             (
                 "clf",
-                LogisticRegression(max_iter=1000, random_state=42),
+                LogisticRegression(
+                    max_iter=2000,
+                    random_state=42,
+                    class_weight="balanced",
+                    C=0.5,
+                ),
             ),
         ]
     )
@@ -59,28 +65,29 @@ def main() -> None:
     print(confusion_matrix(y_te, pred))
     print(classification_report(y_te, pred, target_names=["not_inside", "inside_cloud"]))
 
-    # Fold scaler into linear weights so runtime needs no sklearn.
     scaler: StandardScaler = pipe.named_steps["scaler"]
     clf: LogisticRegression = pipe.named_steps["clf"]
-    # z = (x - mean) / scale ; score = w·z + b = (w/scale)·x + (b - w·mean/scale)
     w = clf.coef_.ravel()
     scale = scaler.scale_
     mean = scaler.mean_
     coef = (w / scale).tolist()
     intercept = float(clf.intercept_.ravel()[0] - np.dot(w, mean / scale))
 
-    MODEL_JSON.parent.mkdir(parents=True, exist_ok=True)
-    MODEL_JSON.write_text(
-        json.dumps(
-            {
-                "feature_names": FEATURE_NAMES,
-                "coef": coef,
-                "intercept": intercept,
-            },
-            indent=2,
-        )
+    payload = json.dumps(
+        {
+            "feature_names": FEATURE_NAMES,
+            "coef": coef,
+            "intercept": intercept,
+        },
+        indent=2,
     )
+    MODEL_JSON.parent.mkdir(parents=True, exist_ok=True)
+    MODEL_JSON.write_text(payload)
+    if DOCS_JSON.parent.exists():
+        DOCS_JSON.write_text(payload)
     print("saved", MODEL_JSON)
+    if DOCS_JSON.parent.exists():
+        print("saved", DOCS_JSON)
 
 
 if __name__ == "__main__":

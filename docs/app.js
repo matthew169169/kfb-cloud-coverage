@@ -1,16 +1,6 @@
 const DAY_BRIGHT_MIN = 80;
 const CAMERA_ALT_M = 150;
 
-let model = null;
-
-async function loadModel() {
-  if (model) return model;
-  const res = await fetch("cloud_logreg.json");
-  if (!res.ok) throw new Error("Could not load model JSON");
-  model = await res.json();
-  return model;
-}
-
 function formatMessage(inside, period) {
   if (inside) {
     return `Camera is inside cloud (${period}). Cloud base at or below ~${CAMERA_ALT_M} m.`;
@@ -114,25 +104,47 @@ function extractFeatures(ctx, w, h) {
   };
 }
 
-function predictInside(feats, m) {
-  let score = m.intercept;
-  for (let i = 0; i < m.feature_names.length; i++) {
-    score += m.coef[i] * feats[m.feature_names[i]];
+/** Same rules as src/heuristic.py */
+function heuristicInside(feats) {
+  const day = feats.is_day >= 0.5;
+  if (day) {
+    if (
+      feats.brightness_mean >= 145.0 &&
+      feats.saturation_mean <= 0.085 &&
+      feats.upper_lower_contrast <= 0.38
+    ) {
+      return true;
+    }
+    if (
+      feats.brightness_mean >= 160.0 &&
+      feats.brightness_std <= 55.0 &&
+      feats.upper_lower_contrast <= 0.32
+    ) {
+      return true;
+    }
+    return false;
   }
-  return score >= 0;
+  if (feats.bright_spot_ratio >= 0.004) return false;
+  if (feats.bright_spot_ratio < 0.0015 && feats.brightness_std < 22.0) return true;
+  if (
+    feats.bright_spot_ratio < 0.003 &&
+    feats.brightness_std < 30.0 &&
+    feats.upper_lower_contrast < 0.1
+  ) {
+    return true;
+  }
+  return false;
 }
 
 async function analyzeFile(file) {
-  const m = await loadModel();
   const { ctx, w, h } = await loadImageToCanvas(file);
-
   const preview = document.getElementById("preview");
   preview.src = URL.createObjectURL(file);
   preview.style.display = "block";
 
   const feats = extractFeatures(ctx, w, h);
   const period = feats.is_day >= 0.5 ? "day" : "night";
-  const inside = predictInside(feats, m);
+  const inside = heuristicInside(feats);
   return formatMessage(inside, period);
 }
 
@@ -158,5 +170,3 @@ document.getElementById("go").addEventListener("click", async () => {
     setOut("Could not analyze: " + (e && e.message ? e.message : e), true);
   }
 });
-
-loadModel().catch(() => {});
