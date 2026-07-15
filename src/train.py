@@ -1,19 +1,26 @@
-"""Train RandomForest on data/labels.csv; save models/cloud_clf.joblib."""
+"""Train classifiers; save a tiny JSON logistic model for low-RAM web deploy."""
 from __future__ import annotations
+
 import csv
+import json
 from pathlib import Path
+
 import numpy as np
-from joblib import dump
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
 from src.features import FEATURE_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels.csv"
-MODEL = ROOT / "models" / "cloud_clf.joblib"
+MODEL_JSON = ROOT / "models" / "cloud_logreg.json"
+
 
 def _date_key(filename: str) -> str:
     return Path(filename).stem.split("_")[1]
+
 
 def load_xy():
     with LABELS.open() as f:
@@ -33,20 +40,48 @@ def load_xy():
             y_te.append(y)
     return np.array(X_tr), np.array(y_tr), np.array(X_te), np.array(y_te)
 
+
 def main() -> None:
     X_tr, y_tr, X_te, y_te = load_xy()
-    clf = RandomForestClassifier(
-        n_estimators=100, max_depth=12, random_state=42, n_jobs=-1
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            (
+                "clf",
+                LogisticRegression(max_iter=1000, random_state=42),
+            ),
+        ]
     )
-    clf.fit(X_tr, y_tr)
-    pred = clf.predict(X_te)
+    pipe.fit(X_tr, y_tr)
+    pred = pipe.predict(X_te)
     print("test_accuracy", accuracy_score(y_te, pred))
     print("confusion_matrix [[tn, fp], [fn, tp]]")
     print(confusion_matrix(y_te, pred))
     print(classification_report(y_te, pred, target_names=["not_inside", "inside_cloud"]))
-    MODEL.parent.mkdir(parents=True, exist_ok=True)
-    dump({"model": clf, "feature_names": FEATURE_NAMES}, MODEL)
-    print("saved", MODEL)
+
+    # Fold scaler into linear weights so runtime needs no sklearn.
+    scaler: StandardScaler = pipe.named_steps["scaler"]
+    clf: LogisticRegression = pipe.named_steps["clf"]
+    # z = (x - mean) / scale ; score = w·z + b = (w/scale)·x + (b - w·mean/scale)
+    w = clf.coef_.ravel()
+    scale = scaler.scale_
+    mean = scaler.mean_
+    coef = (w / scale).tolist()
+    intercept = float(clf.intercept_.ravel()[0] - np.dot(w, mean / scale))
+
+    MODEL_JSON.parent.mkdir(parents=True, exist_ok=True)
+    MODEL_JSON.write_text(
+        json.dumps(
+            {
+                "feature_names": FEATURE_NAMES,
+                "coef": coef,
+                "intercept": intercept,
+            },
+            indent=2,
+        )
+    )
+    print("saved", MODEL_JSON)
+
 
 if __name__ == "__main__":
     main()

@@ -83,7 +83,7 @@ def analyze():
 def main() -> None:
     port = int(os.environ.get("PORT", "7861"))
     # Waitress is lighter/safer than Flask debug server for production.
-    serve(app, host="0.0.0.0", port=port, threads=2)
+    serve(app, host="0.0.0.0", port=port, threads=1)
 
 
 if __name__ == "__main__":

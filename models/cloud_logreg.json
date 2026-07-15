@@ -1,0 +1,21 @@
+{
+  "feature_names": [
+    "brightness_mean",
+    "brightness_std",
+    "edge_density",
+    "saturation_mean",
+    "upper_lower_contrast",
+    "bright_spot_ratio",
+    "is_day"
+  ],
+  "coef": [
+    0.0043161456007729145,
+    -0.2444539542792608,
+    -270.9556819016135,
+    -52.060178423350735,
+    -3.7219322947906384,
+    9.789932626113005,
+    5.5433972803221625
+  ],
+  "intercept": 14.839502384544748
+}

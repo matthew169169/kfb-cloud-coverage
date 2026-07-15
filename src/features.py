@@ -32,6 +32,8 @@ def is_day(mean_brightness: float) -> bool:
 
 def load_rgb(path: Path) -> np.ndarray:
     img = Image.open(path).convert("RGB")
+    # Downscale large uploads — big win for Render free-tier RAM.
+    img.thumbnail((640, 640))
     arr = np.asarray(img, dtype=np.float32)
     # crop top timestamp banner (~8% height)
     h = arr.shape[0]
