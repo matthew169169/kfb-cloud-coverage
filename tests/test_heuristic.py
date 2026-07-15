@@ -18,15 +18,14 @@ def _base(**kwargs):
     return feats
 
 
-def test_day_soft_fog_inside():
-    # Like imgKFB_160101_1550: dark trees but valley washed out
+def test_day_soft_fog_1550_inside():
     assert (
         heuristic_label(
             _base(
                 brightness_mean=146,
                 brightness_std=75,
                 upper_lower_contrast=0.49,
-                far_grad=3.0,
+                far_grad=2.5,
                 far_wash=0.74,
                 far_std=46,
             )
@@ -38,14 +37,7 @@ def test_day_soft_fog_inside():
 def test_day_whiteout_inside():
     assert (
         heuristic_label(
-            _base(
-                brightness_mean=176,
-                brightness_std=50,
-                upper_lower_contrast=0.27,
-                far_grad=4.1,
-                far_wash=0.95,
-                far_std=23,
-            )
+            _base(far_grad=4.1, far_wash=0.95, far_std=23, upper_lower_contrast=0.27)
         )
         == "inside_cloud"
     )
@@ -53,14 +45,7 @@ def test_day_whiteout_inside():
 
 def test_day_clear_structure_not_inside():
     assert (
-        heuristic_label(
-            _base(
-                far_grad=9.0,
-                far_wash=0.62,
-                far_std=56,
-                upper_lower_contrast=0.45,
-            )
-        )
+        heuristic_label(_base(far_grad=9.0, far_wash=0.62, far_std=56))
         == "not_inside"
     )
 

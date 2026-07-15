@@ -31,11 +31,16 @@ def is_day(mean_brightness: float) -> bool:
 
 
 def load_rgb(path: Path) -> np.ndarray:
+    """Match browser canvas: bilinear resize to fit MAX_SIDE, then crop banner."""
     img = Image.open(path).convert("RGB")
-    img.thumbnail((MAX_SIDE, MAX_SIDE))
+    w, h = img.size
+    scale = min(1.0, MAX_SIDE / max(w, h))
+    nw = max(1, round(w * scale))
+    nh = max(1, round(h * scale))
+    if (nw, nh) != (w, h):
+        img = img.resize((nw, nh), Image.BILINEAR)
     arr = np.asarray(img, dtype=np.float32)
-    h = arr.shape[0]
-    return arr[int(h * 0.08) :, :, :]
+    return arr[int(arr.shape[0] * 0.08) :, :, :]
 
 
 def _edge_density(gray: np.ndarray) -> float:
@@ -49,7 +54,6 @@ def _edge_density(gray: np.ndarray) -> float:
 
 
 def _far_metrics(gray: np.ndarray) -> tuple[float, float, float]:
-    """Metrics on mid/far field only (exclude bottom ~28% foreground trees)."""
     h = gray.shape[0]
     y0 = int(h * 0.05)
     y1 = max(y0 + 1, int(h * 0.72))

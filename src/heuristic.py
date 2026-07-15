@@ -1,23 +1,14 @@
 def heuristic_label(feats: dict[str, float]) -> str:
-    """Seed / deploy label: inside_cloud | not_inside.
-
-    Day: ignore dark foreground trees — use mid/far wash + gradient.
-    Soft fog (valley gone, trees still dark) has low far_grad + high far_wash.
-    Night: city lights (bright spots) ⇒ not inside.
-    """
+    """inside_cloud | not_inside — mid/far fog cues (ignore dark foreground trees)."""
     day = feats["is_day"] >= 0.5
     if day:
-        # Soft fog / camera in cloud layer (e.g. imgKFB_160101_1550)
-        if feats["far_grad"] <= 3.5 and feats["far_wash"] >= 0.65:
+        # Soft fog / in cloud (e.g. 160101_1550): washed far field, low texture
+        if feats["far_wash"] >= 0.60 and feats["far_grad"] <= 5.0:
             return "inside_cloud"
         # Hard whiteout
-        if feats["far_std"] <= 28.0 and feats["far_wash"] >= 0.80:
+        if feats["far_std"] <= 30.0 and feats["far_wash"] >= 0.75:
             return "inside_cloud"
-        if (
-            feats["far_grad"] <= 4.3
-            and feats["far_wash"] >= 0.88
-            and feats["far_std"] <= 32.0
-        ):
+        if feats["far_wash"] >= 0.85 and feats["far_grad"] <= 6.0:
             return "inside_cloud"
         return "not_inside"
 
