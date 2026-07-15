@@ -1,0 +1,4 @@
+# Local / optional tooling (not needed on Render)
+-r requirements.txt
+pytest>=7.0
+gradio>=4.0

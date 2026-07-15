@@ -24,31 +24,26 @@ Deploy this repo as a **Render Web Service** (free tier). After deploy you get a
 
 Anyone with that link can upload a photo — no install.
 
-**One-time deploy on Render:**
+**Settings (important for free tier memory):**
 
-1. Push this repo to GitHub (public).
-2. Go to https://dashboard.render.com → **New** → **Web Service** → connect the repo.
-3. Use:
-   - **Build:** `pip install -r requirements.txt`
-   - **Start:** `python -m src.app`
-   - **Instance:** Free
-4. Deploy. Open the `*.onrender.com` URL and share it.
+- **Build:** `pip install -r requirements.txt`
+- **Start:** `python -m src.web`  ← lightweight Flask UI (not Gradio)
+- **Instance:** Free
 
 > Free tier sleeps after idle; first open may take ~30–60s to wake.
-
-Or use `render.yaml` Blueprint: **New** → **Blueprint** → select this repo.
 
 ## Run locally
 
 ```bash
 python3 -m pip install -r requirements.txt
-python3 -m src.app
+python3 -m src.web
 ```
 
-Optional temporary public tunnel from your laptop:
+Optional Gradio UI (heavier; needs `requirements-dev.txt`):
 
 ```bash
-GRADIO_SHARE=1 python3 -m src.app
+python3 -m pip install -r requirements-dev.txt
+python3 -m src.app
 ```
 
 ## Train / retrain (optional)
@@ -64,4 +59,4 @@ python3 -m src.train
 
 - Day/night uses photo brightness only (not the filename).
 - Bundled model: `models/cloud_clf.joblib` (heuristic seed labels; spot-check before operational use).
-- Hugging Face Gradio Spaces currently need PRO; this project targets **Render** (or any host that sets `PORT`) instead.
+- Render free instances are ~512MB RAM — Gradio often OOM; production entrypoint is `src.web`.

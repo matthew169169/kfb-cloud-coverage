@@ -12,4 +12,4 @@ COPY models ./models
 ENV PORT=7861
 EXPOSE 7861
 
-CMD ["python", "-m", "src.app"]
+CMD ["python", "-m", "src.web"]
