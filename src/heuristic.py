@@ -1,29 +1,26 @@
 def heuristic_label(feats: dict[str, float]) -> str:
-    """Seed label: inside_cloud | not_inside.
+    """Seed / deploy label: inside_cloud | not_inside.
 
-    Tuned for MAX_SIDE=640 features (must match train + browser).
-    Day cue: fog whiteout flattens upper/lower contrast (valley gone).
-    Night cue: valley city lights visible as bright spots.
+    Day: ignore dark foreground trees — use mid/far wash + gradient.
+    Soft fog (valley gone, trees still dark) has low far_grad + high far_wash.
+    Night: city lights (bright spots) ⇒ not inside.
     """
     day = feats["is_day"] >= 0.5
     if day:
-        # Thick cloud / fog at camera: bright, grey, valley contrast collapsed.
-        if (
-            feats["brightness_mean"] >= 145.0
-            and feats["saturation_mean"] <= 0.085
-            and feats["upper_lower_contrast"] <= 0.38
-        ):
+        # Soft fog / camera in cloud layer (e.g. imgKFB_160101_1550)
+        if feats["far_grad"] <= 3.5 and feats["far_wash"] >= 0.65:
             return "inside_cloud"
-        # Very washed scene
+        # Hard whiteout
+        if feats["far_std"] <= 28.0 and feats["far_wash"] >= 0.80:
+            return "inside_cloud"
         if (
-            feats["brightness_mean"] >= 160.0
-            and feats["brightness_std"] <= 55.0
-            and feats["upper_lower_contrast"] <= 0.32
+            feats["far_grad"] <= 4.3
+            and feats["far_wash"] >= 0.88
+            and feats["far_std"] <= 32.0
         ):
             return "inside_cloud"
         return "not_inside"
 
-    # Night: visible point lights ⇒ not inside cloud/fog
     if feats["bright_spot_ratio"] >= 0.004:
         return "not_inside"
     if feats["bright_spot_ratio"] < 0.0015 and feats["brightness_std"] < 22.0:

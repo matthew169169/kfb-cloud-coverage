@@ -93,6 +93,38 @@ function extractFeatures(ctx, w, h) {
   const upper = upperSum / Math.max(1, upperN);
   const lower = lowerSum / Math.max(1, n - upperN);
 
+  // Far field (exclude bottom ~28% trees)
+  const fy0 = Math.floor(cropH * 0.05);
+  const fy1 = Math.max(fy0 + 1, Math.floor(cropH * 0.72));
+  let farSum = 0;
+  let farSumSq = 0;
+  let farWash = 0;
+  let farN = 0;
+  let gx = 0;
+  let gy = 0;
+  let gxN = 0;
+  let gyN = 0;
+  for (let y = fy0; y < fy1; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = gray[y * w + x];
+      farSum += v;
+      farSumSq += v * v;
+      farN += 1;
+      if (v > 170) farWash += 1;
+      if (x + 1 < w) {
+        gx += Math.abs(v - gray[y * w + (x + 1)]);
+        gxN += 1;
+      }
+      if (y + 1 < fy1) {
+        gy += Math.abs(v - gray[(y + 1) * w + x]);
+        gyN += 1;
+      }
+    }
+  }
+  const farMean = farSum / farN;
+  const farStd = Math.sqrt(Math.max(0, farSumSq / farN - farMean * farMean));
+  const farGrad = gx / Math.max(1, gxN) + gy / Math.max(1, gyN);
+
   return {
     brightness_mean: mean,
     brightness_std: std,
@@ -100,28 +132,20 @@ function extractFeatures(ctx, w, h) {
     saturation_mean: satSum / n,
     upper_lower_contrast: Math.abs(upper - lower) / 255,
     bright_spot_ratio: brightSpots / n,
+    far_grad: farGrad,
+    far_wash: farWash / farN,
+    far_std: farStd,
     is_day: mean >= DAY_BRIGHT_MIN ? 1 : 0,
   };
 }
 
-/** Same rules as src/heuristic.py */
 function heuristicInside(feats) {
   const day = feats.is_day >= 0.5;
   if (day) {
-    if (
-      feats.brightness_mean >= 145.0 &&
-      feats.saturation_mean <= 0.085 &&
-      feats.upper_lower_contrast <= 0.38
-    ) {
+    if (feats.far_grad <= 3.5 && feats.far_wash >= 0.65) return true;
+    if (feats.far_std <= 28.0 && feats.far_wash >= 0.8) return true;
+    if (feats.far_grad <= 4.3 && feats.far_wash >= 0.88 && feats.far_std <= 32.0)
       return true;
-    }
-    if (
-      feats.brightness_mean >= 160.0 &&
-      feats.brightness_std <= 55.0 &&
-      feats.upper_lower_contrast <= 0.32
-    ) {
-      return true;
-    }
     return false;
   }
   if (feats.bright_spot_ratio >= 0.004) return false;

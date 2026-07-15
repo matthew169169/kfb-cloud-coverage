@@ -11,6 +11,7 @@ def test_extract_features_shape(tmp_path):
     feats = extract_features(p)
     assert list(feats.keys()) == FEATURE_NAMES
     assert feats["is_day"] == 1.0
+    assert "far_grad" in feats and "far_wash" in feats
 
 
 def test_extract_features_dark_is_night(tmp_path):

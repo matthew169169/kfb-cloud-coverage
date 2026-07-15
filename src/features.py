@@ -3,7 +3,6 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-# Image-only day/night: mean brightness after cropping timestamp banner.
 DAY_BRIGHT_MIN = 80.0
 MAX_SIDE = 640
 
@@ -14,25 +13,25 @@ FEATURE_NAMES = [
     "saturation_mean",
     "upper_lower_contrast",
     "bright_spot_ratio",
+    "far_grad",
+    "far_wash",
+    "far_std",
     "is_day",
 ]
 
 
 def parse_timestamp(name: str) -> tuple[int, int]:
-    """Optional helper for filenames; not used for day/night."""
     stem = Path(name).stem
     hhmm = stem.split("_")[-1]
     return int(hhmm[:2]), int(hhmm[2:4])
 
 
 def is_day(mean_brightness: float) -> bool:
-    """Day/night from photo brightness only (no filename)."""
     return mean_brightness >= DAY_BRIGHT_MIN
 
 
 def load_rgb(path: Path) -> np.ndarray:
     img = Image.open(path).convert("RGB")
-    # Always downscale — must match training and browser.
     img.thumbnail((MAX_SIDE, MAX_SIDE))
     arr = np.asarray(img, dtype=np.float32)
     h = arr.shape[0]
@@ -47,6 +46,18 @@ def _edge_density(gray: np.ndarray) -> float:
     right = np.roll(g, -1, 1)
     lap = np.abs(4 * g - up - down - left - right)
     return float(lap.mean() / 255.0)
+
+
+def _far_metrics(gray: np.ndarray) -> tuple[float, float, float]:
+    """Metrics on mid/far field only (exclude bottom ~28% foreground trees)."""
+    h = gray.shape[0]
+    y0 = int(h * 0.05)
+    y1 = max(y0 + 1, int(h * 0.72))
+    far = gray[y0:y1]
+    gx = float(np.abs(np.diff(far, axis=1)).mean())
+    gy = float(np.abs(np.diff(far, axis=0)).mean())
+    wash = float((far > 170).mean())
+    return gx + gy, wash, float(far.std())
 
 
 def extract_features(path: Path | str) -> dict[str, float]:
@@ -64,6 +75,7 @@ def extract_features(path: Path | str) -> dict[str, float]:
     upper_lower = float(abs(upper - lower) / 255.0)
     edge = _edge_density(gray)
     bright_spot_ratio = float((gray > 200).mean())
+    far_grad, far_wash, far_std = _far_metrics(gray)
     day = is_day(bright_mean)
     return {
         "brightness_mean": bright_mean,
@@ -72,6 +84,9 @@ def extract_features(path: Path | str) -> dict[str, float]:
         "saturation_mean": sat,
         "upper_lower_contrast": upper_lower,
         "bright_spot_ratio": bright_spot_ratio,
+        "far_grad": far_grad,
+        "far_wash": far_wash,
+        "far_std": far_std,
         "is_day": 1.0 if day else 0.0,
     }
 
