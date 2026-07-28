@@ -12,9 +12,10 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 os.environ.setdefault("MALLOC_ARENA_MAX", "2")
 
-from flask import Flask, request, render_template_string
+from flask import Flask, jsonify, request, render_template_string
 from waitress import serve
 
+from src.live import predict_latest
 from src.predict import predict_path
 
 app = Flask(__name__)
@@ -51,6 +52,41 @@ PAGE = """
   {% if result %}
   <div class="result {% if error %}err{% endif %}">{{ result }}</div>
   {% endif %}
+
+  <h2 style="font-size:1.1rem;margin-top:1.75rem">Live &mdash; latest KFB photo</h2>
+  <p class="sub" style="font-size:0.9rem">
+    Newest photo from the
+    <a href="https://www.hko.gov.hk/tc/wxinfo/ts/webcam/KFB_photo.htm" target="_blank" rel="noopener">HKO KFB webcam</a>,
+    re-checked every 5 minutes.
+  </p>
+  <img id="live-img" style="max-width:100%;border-radius:6px;display:none" alt="latest KFB photo"/>
+  <div id="live-out" class="result" style="display:none;white-space:pre-wrap"></div>
+
+  <script>
+    async function refreshLive() {
+      var out = document.getElementById("live-out");
+      out.style.display = "block";
+      try {
+        var res = await fetch("/live");
+        var data = await res.json();
+        if (!data.ok) {
+          out.className = "result err";
+          out.textContent = data.error;
+          return;
+        }
+        out.className = "result";
+        out.textContent = "Photo " + data.photo_time + "\\n" + data.message;
+        var img = document.getElementById("live-img");
+        img.src = data.image_url;
+        img.style.display = "block";
+      } catch (e) {
+        out.className = "result err";
+        out.textContent = "Live update failed: " + e;
+      }
+    }
+    refreshLive();
+    setInterval(refreshLive, 5 * 60 * 1000);
+  </script>
 </body>
 </html>
 """
@@ -59,6 +95,14 @@ PAGE = """
 @app.get("/")
 def index():
     return render_template_string(PAGE, result=None, error=False)
+
+
+@app.get("/live")
+def live():
+    try:
+        return jsonify(predict_latest())
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Live fetch failed: {e}"}), 502
 
 
 @app.post("/")

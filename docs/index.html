@@ -7,6 +7,7 @@
   <style>
     body { font-family: system-ui, sans-serif; max-width: 36rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.45; }
     h1 { font-size: 1.35rem; margin-bottom: 0.2rem; }
+    h2 { font-size: 1.1rem; margin: 0 0 0.35rem; }
     .ver { color: #666; font-size: 0.85rem; margin-bottom: 0.75rem; }
     p.sub { color: #444; margin-top: 0; }
     .box { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1.25rem 0; }
@@ -21,7 +22,7 @@
 </head>
 <body>
   <h1>KFB Cloud Coverage</h1>
-  <div class="ver">Detector v5 — if you don’t see “v5”, hard-refresh (Cmd+Shift+R)</div>
+  <div class="ver">Detector v6 — if you don’t see “v6”, hard-refresh (Cmd+Shift+R)</div>
   <p class="sub">Upload a weather-camera photo. Analysis runs <strong>on your device</strong> — nothing is uploaded to a server.</p>
 
   <div class="box">
@@ -34,12 +35,26 @@
 
   <div id="out" class="result" style="display:none"></div>
   <div id="dbg" class="dbg"></div>
-  <p class="note">Public GitHub Pages app. Camera altitude reference: ~150 m.</p>
+
+  <div class="box">
+    <h2>Live — latest KFB photo</h2>
+    <p class="note">
+      Fetches the newest photo from the
+      <a href="https://www.hko.gov.hk/tc/wxinfo/ts/webcam/KFB_photo.htm" target="_blank" rel="noopener">HKO KFB webcam</a>
+      and re-analyzes it every 5 minutes.
+    </p>
+    <button id="live-refresh" type="button">Check now</button>
+    <img id="live-img" class="preview" alt="latest KFB photo"/>
+    <div id="live-out" class="result" style="display:none"></div>
+    <div id="live-meta" class="dbg"></div>
+  </div>
+
+  <p class="note">Public GitHub Pages app. Camera altitude reference: ~150 m. Photo source: Hong Kong Observatory.</p>
 
   <script>
 const DAY_BRIGHT_MIN = 80;
 const CAMERA_ALT_M = 150;
-const VERSION = "v5";
+const VERSION = "v6";
 
 function formatMessage(inside, period) {
   if (inside) {
@@ -199,5 +214,6 @@ document.getElementById("go").addEventListener("click", async function () {
   }
 });
   </script>
+  <script src="live.js"></script>
 </body>
 </html>

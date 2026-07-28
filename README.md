@@ -3,6 +3,12 @@
 Upload a Hong Kong hill weather-camera photo (e.g. Kadoorie Farm).  
 The app tells you **day/night** (from image brightness) and whether the camera is **inside cloud**, with a cloud-base message relative to **~150 m** camera altitude.
 
+**Live mode:** both web versions also fetch the newest photo from the
+[HKO KFB webcam](https://www.hko.gov.hk/tc/wxinfo/ts/webcam/KFB_photo.htm)
+(published every 5 minutes) and show the photo time + prediction, auto-refreshing every 5 minutes.
+The browser version analyzes pixels via a public CORS proxy (HKO sends no CORS headers);
+the Flask version fetches server-side (`GET /live`, no proxy needed). CLI: `python -m src.live`.
+
 ## Public web app (recommended): GitHub Pages — runs on the user's device
 
 Static site in `docs/`. **Computation runs in the visitor's browser** (no server RAM / no Render OOM).  
