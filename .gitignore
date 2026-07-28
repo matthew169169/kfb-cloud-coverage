@@ -8,4 +8,5 @@ data/labels.csv
 venv/
 *.docx
 ~$*
+ppt_gen/assets/
 
