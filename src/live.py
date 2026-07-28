@@ -7,6 +7,8 @@ probe backwards from "now" until a frame exists.
 """
 from __future__ import annotations
 
+import json
+import sys
 import tempfile
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -70,7 +72,13 @@ def predict_latest() -> dict:
 
 
 def main() -> None:
+    args = sys.argv[1:]
     result = predict_latest()
+    if "--json" in args:
+        out = Path(args[args.index("--json") + 1])
+        result["updated_utc"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        out.write_text(json.dumps(result, indent=2))
+        print(f"wrote {out}")
     if not result["ok"]:
         raise SystemExit(result["error"])
     print(f"{result['photo_time']}: {result['message']}")

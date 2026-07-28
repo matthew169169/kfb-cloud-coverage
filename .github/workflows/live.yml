@@ -1,0 +1,49 @@
+name: live-predict
+
+# Fetch the latest KFB webcam frame, run the model, and publish live.json to
+# the single-commit `live-data` branch. The GitHub Pages app reads it via
+# raw.githubusercontent.com (which sends CORS headers), so visitors get the
+# prediction without relying on third-party CORS proxies.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # best effort; GitHub may add a few minutes of jitter
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live-predict
+  cancel-in-progress: true
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal deps
+        run: pip install --quiet numpy Pillow
+
+      - name: Fetch latest frame and predict
+        run: python -m src.live --json live.json
+
+      - name: Publish live.json to live-data branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/live
+          cp live.json /tmp/live/
+          cd /tmp/live
+          git init -q -b live-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add live.json
+          git commit -qm "live: $(date -u +%FT%TZ)"
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" live-data
