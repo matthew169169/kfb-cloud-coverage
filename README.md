@@ -35,12 +35,20 @@ Open http://127.0.0.1:8080
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
-python3 -m src.auto_label
-python3 -m src.train
-cp models/cloud_logreg.json docs/cloud_logreg.json
+python3 -m src.auto_label   # extract features for all photos in image/
+python3 -m src.train        # train on data/golden_labels.csv, export JSON
 ```
+
+`data/golden_labels.csv` holds 142 hand-verified labels (the golden set);
+training uses these instead of the heuristic seed labels. The trained
+logistic model scores 93% leave-one-date-out CV accuracy on the golden set
+vs 72% for the old rules. `src.train` writes the model JSON to both
+`models/` and `docs/`.
 
 ## Notes
 
 - Day/night uses photo brightness only (not the filename).
-- Model: `models/cloud_logreg.json` (copied into `docs/` for Pages).
+- Model: `models/cloud_logreg.json` (copied into `docs/` for Pages);
+  inference is a single dot product, identical in Python and JS.
+- Heuristic rules (`src/heuristic.py`) remain for auto-labeling and as an
+  offline fallback.

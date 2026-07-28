@@ -1,7 +1,7 @@
 /* Live mode: fetch the latest KFB webcam photo from HKO every 5 minutes,
  * analyze it on-device and show the photo time + prediction.
  *
- * Reuses extractFeatures / heuristicInside / formatMessage / loadImageToCanvas
+ * Reuses extractFeatures / predictInside / formatMessage / loadImageToCanvas
  * defined in the inline script of index.html (must load after it).
  *
  * HKO does not send CORS headers, so pixel analysis goes through a public
@@ -109,7 +109,7 @@
       var packed = await loadImageToCanvas(blob);
       var feats = extractFeatures(packed.ctx, packed.w, packed.h);
       var period = feats.is_day >= 0.5 ? "day" : "night";
-      var inside = heuristicInside(feats);
+      var inside = predictInside(feats);
       setLive("Photo " + fmtHKT(latest.date) + "\n" + formatMessage(inside, period), false);
       meta.textContent = "Auto-updates every 5 min \u00b7 last checked " +
         new Date().toLocaleTimeString();

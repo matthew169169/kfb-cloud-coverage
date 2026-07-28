@@ -22,7 +22,7 @@
 </head>
 <body>
   <h1>KFB Cloud Coverage</h1>
-  <div class="ver">Detector v6 — if you don’t see “v6”, hard-refresh (Cmd+Shift+R)</div>
+  <div class="ver">Detector v7 — if you don’t see “v7”, hard-refresh (Cmd+Shift+R)</div>
   <p class="sub">Upload a weather-camera photo. Analysis runs <strong>on your device</strong> — nothing is uploaded to a server.</p>
 
   <div class="box">
@@ -54,7 +54,26 @@
   <script>
 const DAY_BRIGHT_MIN = 80;
 const CAMERA_ALT_M = 150;
-const VERSION = "v6";
+const VERSION = "v7";
+
+// Logistic model trained on the hand-labeled golden set (scaler folded in).
+// Loaded async; heuristicInside remains as fallback until it arrives.
+var MODEL = null;
+fetch("cloud_logreg.json")
+  .then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (m) { if (m && m.coef) MODEL = m; })
+  .catch(function () { /* offline / file:// — heuristic fallback */ });
+
+function predictInside(feats) {
+  if (MODEL) {
+    var score = MODEL.intercept;
+    for (var i = 0; i < MODEL.feature_names.length; i++) {
+      score += MODEL.coef[i] * feats[MODEL.feature_names[i]];
+    }
+    return score > 0;
+  }
+  return heuristicInside(feats);
+}
 
 function formatMessage(inside, period) {
   if (inside) {
@@ -163,20 +182,13 @@ function extractFeatures(ctx, w, h) {
 }
 
 function heuristicInside(feats) {
+  // Fallback rules, tuned on the golden set (see src/heuristic.py).
   if (feats.is_day >= 0.5) {
-    if (feats.far_wash >= 0.60 && feats.far_grad <= 5.0) return true;
-    if (feats.far_std <= 30.0 && feats.far_wash >= 0.75) return true;
-    if (feats.far_wash >= 0.85 && feats.far_grad <= 6.0) return true;
+    if (feats.far_wash >= 0.85 && feats.far_grad <= 4.0) return true;
+    if (feats.far_std <= 5.0 && feats.far_wash >= 0.90) return true;
     return false;
   }
-  if (feats.bright_spot_ratio >= 0.004) return false;
-  if (feats.bright_spot_ratio < 0.0015 && feats.brightness_std < 22.0) return true;
-  if (
-    feats.bright_spot_ratio < 0.003 &&
-    feats.brightness_std < 30.0 &&
-    feats.upper_lower_contrast < 0.1
-  ) return true;
-  return false;
+  return feats.bright_spot_ratio <= 0.0005 && feats.brightness_std <= 10.0;
 }
 
 function setOut(text, isErr) {
@@ -201,10 +213,10 @@ document.getElementById("go").addEventListener("click", async function () {
     preview.style.display = "block";
     var feats = extractFeatures(packed.ctx, packed.w, packed.h);
     var period = feats.is_day >= 0.5 ? "day" : "night";
-    var inside = heuristicInside(feats);
+    var inside = predictInside(feats);
     setOut(formatMessage(inside, period), false);
     document.getElementById("dbg").textContent =
-      VERSION +
+      VERSION + (MODEL ? " (model)" : " (rules)") +
       " | far_grad=" + feats.far_grad.toFixed(2) +
       " far_wash=" + feats.far_wash.toFixed(2) +
       " far_std=" + feats.far_std.toFixed(1) +
