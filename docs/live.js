@@ -14,6 +14,9 @@
   var STEP_MS = 5 * 60 * 1000;
   var MAX_LOOKBACK = 9; // try up to 45 minutes back
   var PROXIES = [
+    // wsrv.nl is a Cloudflare-backed image CDN that always sends CORS headers;
+    // far more reliable than generic CORS proxies (kept below as fallbacks).
+    function (u) { return "https://wsrv.nl/?url=" + encodeURIComponent(u); },
     function (u) { return "https://corsproxy.io/?url=" + encodeURIComponent(u); },
     function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
     function (u) { return "https://api.codetabs.com/v1/proxy?quest=" + u; }
