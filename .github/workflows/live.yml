@@ -4,10 +4,11 @@ name: live-predict
 # single-commit `live-data` branch, which the Pages app reads via
 # raw.githubusercontent.com (CORS-enabled).
 #
-# GitHub's high-frequency cron (*/5) fires unreliably, so instead the job is
-# scheduled every 30 minutes and each run loops internally, refreshing every
-# 5 minutes for ~35 minutes. Overlapping runs hand over via the concurrency
-# group (the newer run cancels the older loop).
+# GitHub throttles repository crons heavily (observed: */30 firing every ~3
+# hours), so each run loops internally, refreshing every 5 minutes for up to
+# ~5.5 hours (job limit is 6 h). Whenever the cron does fire, the new run
+# takes over and the old one is cancelled via the concurrency group —
+# cancelled runs do not send failure emails.
 
 on:
   schedule:
@@ -24,7 +25,7 @@ concurrency:
 jobs:
   predict:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -40,9 +41,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -u
+          ITERATIONS=66  # x 5 min sleep ~= 5.5 hours of coverage per run
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for i in $(seq 1 7); do
+          for i in $(seq 1 "$ITERATIONS"); do
             if python -m src.live --json live.json; then
               rm -rf /tmp/live && mkdir -p /tmp/live
               cp live.json /tmp/live/
@@ -56,5 +58,8 @@ jobs:
             else
               echo "predict failed on iteration $i (will retry next loop)"
             fi
-            [ "$i" -lt 7 ] && sleep 300
+            if [ "$i" -lt "$ITERATIONS" ]; then
+              sleep 300
+            fi
           done
+          exit 0
