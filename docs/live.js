@@ -1,6 +1,6 @@
-/* Live mode: every 5 minutes, show the freshest KFB photo that has an
- * analysis — the displayed photo and the prediction always refer to the SAME
- * frame.
+/* Live mode: show the freshest KFB photo that has an analysis — the photo
+ * and the prediction always refer to the SAME frame. Rechecks every minute;
+ * new frames appear about every 5 minutes.
  *
  * Preference order:
  *   1. Newest published frame analyzed on-device (pixels fetched through a
@@ -15,10 +15,11 @@
   "use strict";
 
   var LIVE_JSON = "https://raw.githubusercontent.com/matthew169169/kfb-cloud-coverage/live-data/live.json";
-  var FRESH_MS = 30 * 60 * 1000;
+  var FRESH_MS = 20 * 60 * 1000;   // server data older than this is ignored
+  var CHECK_MS = 60 * 1000;        // re-check every minute for a newer result
 
   var FRAME_BASE = "https://www.weather.gov.hk/wxinfo/aws/hko_mica/kfb/";
-  var STEP_MS = 5 * 60 * 1000;
+  var STEP_MS = 5 * 60 * 1000;     // HKO frame cadence
   var MAX_LOOKBACK = 9;      // probe up to 45 minutes back
   var ANALYZE_FRAMES = 3;    // attempt on-device analysis on up to 3 frames
   var PROXIES = [
@@ -29,6 +30,7 @@
   ];
 
   var busy = false;
+  var lastShownTime = null;  // frame time of the currently displayed result
 
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
 
@@ -56,7 +58,7 @@
 
   function setMeta(text) {
     document.getElementById("live-meta").textContent =
-      text + " \u00b7 auto-updates every 5 min \u00b7 last checked " +
+      text + " \u00b7 rechecks every minute \u00b7 last checked " +
       new Date().toLocaleTimeString();
   }
 
@@ -70,6 +72,7 @@
     showImage(url);
     setLive("Photo " + time + "\n" + message, false);
     setMeta(sourceNote);
+    lastShownTime = time;
   }
 
   async function fetchLiveJson() {
@@ -134,12 +137,23 @@
     if (busy) return;
     busy = true;
     try {
-      setLive("Checking for the latest KFB photo\u2026", false);
+      if (lastShownTime === null) {
+        setLive("Checking for the latest KFB photo\u2026", false);
+      }
       var server = await fetchLiveJson();          // may be null
       var frames = await findRecentFrames();       // newest first
 
       if (!frames.length && !server) {
         throw new Error("no recent frame found (network issue?)");
+      }
+
+      // Nothing newer than what is on screen: just bump the checked clock.
+      var newest = frames.length ? frames[0].time : server.photo_time;
+      if (server && server.photo_time > newest) newest = server.photo_time;
+      if (lastShownTime !== null && newest <= lastShownTime) {
+        var prev = document.getElementById("live-meta").textContent;
+        setMeta(prev.split(" \u00b7 ")[0] || "Up to date");
+        return;
       }
 
       // Server already covers the newest published frame — done.
@@ -153,7 +167,9 @@
       for (var i = 0; i < frames.length; i++) {
         var f = frames[i];
         if (server && f.time <= server.photo_time) break;  // older than server
-        setLive("Photo " + f.time + " \u2014 analyzing on your device\u2026", false);
+        if (lastShownTime === null) {
+          setLive("Photo " + f.time + " \u2014 analyzing on your device\u2026", false);
+        }
         var msg = await analyzeOnDevice(f);
         if (msg) {
           showResult(f.url, f.time, msg, "Analyzed on your device");
@@ -168,15 +184,21 @@
         return;
       }
 
-      showImage(frames[0].url);
-      setLive(
-        "Photo " + frames[0].time + " loaded, but analysis is unavailable right now " +
-        "(server data pending and CORS proxies failed). It will retry in 5 minutes, " +
-        "or save the photo and use the upload box above.",
-        true
-      );
+      // No analysis available for any recent frame. Keep whatever result is
+      // already on screen; only surface the error state on first load.
+      if (lastShownTime === null) {
+        showImage(frames[0].url);
+        setLive(
+          "Photo " + frames[0].time + " loaded, but analysis is unavailable right now " +
+          "(server data pending and CORS proxies failed). It retries every minute, " +
+          "or save the photo and use the upload box above.",
+          true
+        );
+      }
     } catch (e) {
-      setLive("Live update failed: " + (e && e.message ? e.message : e), true);
+      if (lastShownTime === null) {
+        setLive("Live update failed: " + (e && e.message ? e.message : e), true);
+      }
     } finally {
       busy = false;
     }
@@ -188,5 +210,5 @@
 
   document.getElementById("live-refresh").addEventListener("click", refreshLive);
   refreshLive();
-  setInterval(refreshLive, STEP_MS);
+  setInterval(refreshLive, CHECK_MS);
 })();
