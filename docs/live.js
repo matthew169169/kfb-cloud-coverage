@@ -1,13 +1,15 @@
-/* Live mode: show the newest KFB webcam photo + model prediction,
- * refreshed every 5 minutes.
+/* Live mode: every 5 minutes, show the freshest KFB photo that has an
+ * analysis — the displayed photo and the prediction always refer to the SAME
+ * frame.
  *
- * Primary source: live.json published to the repo's `live-data` branch by a
- * GitHub Actions cron job (analysis runs server-side with the full Python
- * pipeline; raw.githubusercontent.com sends CORS headers, so this works for
- * every visitor with no third-party proxy).
- *
- * Fallback: analyze on-device — probe recent frames, fetch pixels through
- * public CORS proxies, and score with predictInside from index.html.
+ * Preference order:
+ *   1. Newest published frame analyzed on-device (pixels fetched through a
+ *      CORS proxy, scored with the same model as everywhere else).
+ *   2. live.json published by the GitHub Actions cron — its image_url and
+ *      message describe the same frame, served from raw.githubusercontent.com
+ *      which sends CORS headers.
+ * Whichever source covers the newer frame wins; photo and analysis are never
+ * mixed across frames.
  */
 (function () {
   "use strict";
@@ -17,8 +19,8 @@
 
   var FRAME_BASE = "https://www.weather.gov.hk/wxinfo/aws/hko_mica/kfb/";
   var STEP_MS = 5 * 60 * 1000;
-  var MAX_LOOKBACK = 9;      // probe up to 45 minutes back for an existing frame
-  var ANALYZE_FRAMES = 3;    // try pixel analysis on up to 3 recent frames
+  var MAX_LOOKBACK = 9;      // probe up to 45 minutes back
+  var ANALYZE_FRAMES = 3;    // attempt on-device analysis on up to 3 frames
   var PROXIES = [
     function (u) { return "https://wsrv.nl/?url=" + encodeURIComponent(u); },
     function (u) { return "https://corsproxy.io/?url=" + encodeURIComponent(u); },
@@ -53,32 +55,35 @@
   }
 
   function setMeta(text) {
-    document.getElementById("live-meta").textContent = text;
+    document.getElementById("live-meta").textContent =
+      text + " \u00b7 auto-updates every 5 min \u00b7 last checked " +
+      new Date().toLocaleTimeString();
   }
 
   function showImage(url) {
     var img = document.getElementById("live-img");
-    img.src = url;
+    if (img.getAttribute("src") !== url) img.src = url;
     img.style.display = "block";
   }
 
-  /* ---------- primary: precomputed JSON from GitHub Actions ---------- */
-
-  async function tryPrecomputed() {
-    var res = await fetch(LIVE_JSON + "?ts=" + Date.now(), { cache: "no-store" });
-    if (!res.ok) throw new Error("live.json HTTP " + res.status);
-    var data = await res.json();
-    if (!data.ok) throw new Error(data.error || "live.json reports failure");
-    var ageMs = Date.now() - Date.parse(data.updated_utc);
-    if (!(ageMs >= 0 && ageMs < FRESH_MS)) throw new Error("live.json is stale");
-    showImage(data.image_url);
-    setLive("Photo " + data.photo_time + "\n" + data.message, false);
-    setMeta("Analyzed on GitHub Actions " + Math.max(1, Math.round(ageMs / 60000)) +
-      " min ago \u00b7 auto-updates every 5 min \u00b7 last checked " +
-      new Date().toLocaleTimeString());
+  function showResult(url, time, message, sourceNote) {
+    showImage(url);
+    setLive("Photo " + time + "\n" + message, false);
+    setMeta(sourceNote);
   }
 
-  /* ---------- fallback: analyze on-device via CORS proxies ---------- */
+  async function fetchLiveJson() {
+    try {
+      var res = await fetch(LIVE_JSON + "?ts=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) return null;
+      var data = await res.json();
+      if (!data.ok) return null;
+      var age = Date.now() - Date.parse(data.updated_utc);
+      return (age >= 0 && age < FRESH_MS) ? data : null;
+    } catch (e) {
+      return null;
+    }
+  }
 
   function probe(url) {
     return new Promise(function (resolve) {
@@ -95,7 +100,7 @@
     for (var i = 0; i < MAX_LOOKBACK && found.length < ANALYZE_FRAMES; i++) {
       var d = new Date(base.getTime() - i * STEP_MS);
       var url = FRAME_BASE + frameName(d);
-      if (await probe(url)) found.push({ date: d, url: url });
+      if (await probe(url)) found.push({ date: d, url: url, time: fmtHKT(d) });
     }
     return found;
   }
@@ -116,49 +121,69 @@
     return null;
   }
 
-  async function tryOnDevice() {
-    setLive("Looking for the latest KFB photo\u2026", false);
-    var frames = await findRecentFrames();
-    if (!frames.length) throw new Error("no recent frame found (network issue?)");
-    showImage(frames[0].url);
-
-    for (var i = 0; i < frames.length; i++) {
-      var f = frames[i];
-      setLive("Photo " + fmtHKT(f.date) + " \u2014 analyzing on your device\u2026", false);
-      var blob = await fetchPixels(f.url);
-      if (!blob) continue;  // proxies may fail per-frame; try an older frame
-      var packed = await loadImageToCanvas(blob);
-      var feats = extractFeatures(packed.ctx, packed.w, packed.h);
-      var period = feats.is_day >= 0.5 ? "day" : "night";
-      var inside = predictInside(feats);
-      showImage(f.url);
-      setLive("Photo " + fmtHKT(f.date) + "\n" + formatMessage(inside, period), false);
-      setMeta("Analyzed on your device \u00b7 auto-updates every 5 min \u00b7 last checked " +
-        new Date().toLocaleTimeString());
-      return;
-    }
-    setLive(
-      "Photo " + fmtHKT(frames[0].date) + " loaded, but analysis is unavailable " +
-      "right now (server data pending and CORS proxies failed). " +
-      "It will retry in 5 minutes, or save the photo and use the upload box above.",
-      true
-    );
+  async function analyzeOnDevice(frame) {
+    var blob = await fetchPixels(frame.url);
+    if (!blob) return null;
+    var packed = await loadImageToCanvas(blob);
+    var feats = extractFeatures(packed.ctx, packed.w, packed.h);
+    var period = feats.is_day >= 0.5 ? "day" : "night";
+    return formatMessage(predictInside(feats), period);
   }
 
   async function refreshLive() {
     if (busy) return;
     busy = true;
     try {
-      try {
-        await tryPrecomputed();
-      } catch (e) {
-        await tryOnDevice();
+      setLive("Checking for the latest KFB photo\u2026", false);
+      var server = await fetchLiveJson();          // may be null
+      var frames = await findRecentFrames();       // newest first
+
+      if (!frames.length && !server) {
+        throw new Error("no recent frame found (network issue?)");
       }
+
+      // Server already covers the newest published frame — done.
+      if (server && frames.length && server.photo_time === frames[0].time) {
+        showResult(server.image_url, server.photo_time, server.message,
+          "Analyzed on GitHub Actions " + serverAge(server) + " min ago");
+        return;
+      }
+
+      // Try to analyze frames newer than the server result, newest first.
+      for (var i = 0; i < frames.length; i++) {
+        var f = frames[i];
+        if (server && f.time <= server.photo_time) break;  // older than server
+        setLive("Photo " + f.time + " \u2014 analyzing on your device\u2026", false);
+        var msg = await analyzeOnDevice(f);
+        if (msg) {
+          showResult(f.url, f.time, msg, "Analyzed on your device");
+          return;
+        }
+      }
+
+      // Fall back to the server's own frame (photo and analysis stay paired).
+      if (server) {
+        showResult(server.image_url, server.photo_time, server.message,
+          "Analyzed on GitHub Actions " + serverAge(server) + " min ago");
+        return;
+      }
+
+      showImage(frames[0].url);
+      setLive(
+        "Photo " + frames[0].time + " loaded, but analysis is unavailable right now " +
+        "(server data pending and CORS proxies failed). It will retry in 5 minutes, " +
+        "or save the photo and use the upload box above.",
+        true
+      );
     } catch (e) {
       setLive("Live update failed: " + (e && e.message ? e.message : e), true);
     } finally {
       busy = false;
     }
+  }
+
+  function serverAge(server) {
+    return Math.max(1, Math.round((Date.now() - Date.parse(server.updated_utc)) / 60000));
   }
 
   document.getElementById("live-refresh").addEventListener("click", refreshLive);
