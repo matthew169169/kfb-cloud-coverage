@@ -1,11 +1,36 @@
 const DAY_BRIGHT_MIN = 80;
-const CAMERA_ALT_M = 150;
 
-function formatMessage(inside, period) {
+const STATIONS = {
+  150:  "KFBG (Kadoorie Farm)",
+  957:  "Tai Mo Shan",
+  396:  "Victoria Peak",
+  934:  "Lantau Peak",
+  702:  "Ma On Shan",
+  495:  "Lion Rock",
+  639:  "Pat Sin Leng",
+};
+
+function formatMessage(inside, period, altM) {
   if (inside) {
-    return `Camera is inside cloud (${period}). Cloud base at or below ~${CAMERA_ALT_M} m.`;
+    return `Camera is inside cloud (${period}). Cloud base at or below ~${altM} m.`;
   }
-  return `I am not inside cloud (${period}). The cloud base should be above ${CAMERA_ALT_M} m.`;
+  return `I am not inside cloud (${period}). The cloud base should be above ${altM} m.`;
+}
+
+function estimateVisibility(feats, insideCloud) {
+  if (insideCloud) return "Visibility: at or below 300 m (camera in cloud/fog)";
+  const { far_grad, far_wash, is_day, bright_spot_ratio, brightness_std } = feats;
+  if (is_day < 0.5) {
+    if (bright_spot_ratio < 0.002 && brightness_std < 30) return "Visibility: at least 300 m (night, few lights visible)";
+    if (bright_spot_ratio < 0.005)  return "Visibility: at least 500 m (night)";
+    if (bright_spot_ratio < 0.010)  return "Visibility: at least 1 km (night)";
+    return "Visibility: at least 3 km (night, valley lights clear)";
+  }
+  if (far_wash > 0.50)                     return "Visibility: at least 300 m (heavy haze / low cloud nearby)";
+  if (far_wash > 0.35 || far_grad < 4.0)  return "Visibility: at least 500 m";
+  if (far_wash > 0.20 || far_grad < 8.0)  return "Visibility: at least 1 km";
+  if (far_wash > 0.08 || far_grad < 14.0) return "Visibility: at least 3 km";
+  return "Visibility: at least 5 km (far field clear)";
 }
 
 function loadImageToCanvas(file) {
@@ -160,37 +185,54 @@ function heuristicInside(feats) {
   return false;
 }
 
-async function analyzeFile(file) {
+async function analyzeFile(file, altM) {
   const { ctx, w, h } = await loadImageToCanvas(file);
   const preview = document.getElementById("preview");
   preview.src = URL.createObjectURL(file);
   preview.style.display = "block";
 
-  const feats = extractFeatures(ctx, w, h);
+  const feats  = extractFeatures(ctx, w, h);
   const period = feats.is_day >= 0.5 ? "day" : "night";
   const inside = heuristicInside(feats);
-  return formatMessage(inside, period);
+  return {
+    cloudMsg: formatMessage(inside, period, altM),
+    visMsg:   estimateVisibility(feats, inside),
+    inside,
+    feats,
+  };
 }
 
-function setOut(text, isErr) {
-  const out = document.getElementById("out");
-  out.style.display = "block";
-  out.className = "result" + (isErr ? " err" : "");
-  out.textContent = text;
+function setResults(cloudMsg, visMsg, isInside) {
+  const block = document.getElementById("resultBlock");
+  const out   = document.getElementById("out");
+  const vis   = document.getElementById("vis");
+  if (block) block.style.display = "block";
+  out.className  = "result" + (isInside ? " inside" : "");
+  out.textContent = cloudMsg;
+  if (vis) vis.textContent = visMsg;
 }
 
 document.getElementById("go").addEventListener("click", async () => {
   const input = document.getElementById("photo");
-  const file = input.files && input.files[0];
-  if (!file) {
-    setOut("Please choose a photo.", true);
-    return;
-  }
-  setOut("Analyzing on your device…", false);
+  const file  = input.files && input.files[0];
+  const stationEl = document.getElementById("station");
+  const altM = stationEl ? parseInt(stationEl.value, 10) : 150;
+  if (!file) { setResults("Please choose a photo.", "", true); return; }
+  setResults("Analyzing on your device…", "", false);
   try {
-    const msg = await analyzeFile(file);
-    setOut(msg, false);
+    const { cloudMsg, visMsg, inside, feats } = await analyzeFile(file, altM);
+    setResults(cloudMsg, visMsg, inside);
+    const dbg = document.getElementById("dbg");
+    if (dbg) {
+      dbg.textContent =
+        "v6 | " + (STATIONS[altM] || altM + " m") +
+        " | far_grad=" + feats.far_grad.toFixed(2) +
+        " far_wash=" + feats.far_wash.toFixed(2) +
+        " far_std=" + feats.far_std.toFixed(1) +
+        " bsp=" + feats.bright_spot_ratio.toFixed(4) +
+        " → " + (inside ? "inside_cloud" : "not_inside");
+    }
   } catch (e) {
-    setOut("Could not analyze: " + (e && e.message ? e.message : e), true);
+    setResults("Could not analyze: " + (e && e.message ? e.message : e), "", true);
   }
 });
