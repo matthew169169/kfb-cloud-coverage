@@ -130,7 +130,7 @@
     var packed = await loadImageToCanvas(blob);
     var feats = extractFeatures(packed.ctx, packed.w, packed.h);
     var period = feats.is_day >= 0.5 ? "day" : "night";
-    return formatMessage(predictInside(feats), period);
+    return formatMessage(predictInside(feats, 150), period, 150);
   }
 
   async function refreshLive() {

@@ -10,6 +10,87 @@ const STATIONS = {
   639:  "Pat Sin Leng",
 };
 
+const KFBG_THRESHOLDS = {
+  profile: "KFBG calibrated",
+  day: {
+    washA: 0.65, gradA: 3.5,
+    stdB: 28.0, washB: 0.8,
+    washC: 0.88, gradC: 4.3, stdC: 32.0,
+  },
+  night: {
+    lightsClear: 0.004,
+    bspA: 0.0015, stdA: 22.0,
+    bspB: 0.003, stdB: 30.0, ulcB: 0.1,
+  },
+  vis: {
+    nightBspA: 0.002, nightStdA: 30,
+    nightBspB: 0.005, nightBspC: 0.010,
+    dayWash300: 0.50, dayWash500: 0.35, dayGrad500: 4.0,
+    dayWash1k: 0.20, dayGrad1k: 8.0,
+    dayWash3k: 0.08, dayGrad3k: 14.0,
+  },
+};
+
+function midPeakThresholds(profile) {
+  return {
+    profile,
+    day: {
+      washA: 0.70, gradA: 3.2,
+      stdB: 24.0, washB: 0.84,
+      washC: 0.90, gradC: 4.0, stdC: 28.0,
+    },
+    night: {
+      lightsClear: 0.003,
+      bspA: 0.0012, stdA: 20.0,
+      bspB: 0.0025, stdB: 28.0, ulcB: 0.09,
+    },
+    vis: {
+      nightBspA: 0.0018, nightStdA: 28,
+      nightBspB: 0.0045, nightBspC: 0.009,
+      dayWash300: 0.56, dayWash500: 0.40, dayGrad500: 3.6,
+      dayWash1k: 0.24, dayGrad1k: 7.0,
+      dayWash3k: 0.10, dayGrad3k: 12.0,
+    },
+  };
+}
+
+function highPeakThresholds(profile) {
+  return {
+    profile,
+    day: {
+      washA: 0.75, gradA: 3.0,
+      stdB: 20.0, washB: 0.86,
+      washC: 0.92, gradC: 3.6, stdC: 24.0,
+    },
+    night: {
+      lightsClear: 0.0025,
+      bspA: 0.0010, stdA: 18.0,
+      bspB: 0.0020, stdB: 26.0, ulcB: 0.08,
+    },
+    vis: {
+      nightBspA: 0.0015, nightStdA: 26,
+      nightBspB: 0.004, nightBspC: 0.008,
+      dayWash300: 0.62, dayWash500: 0.46, dayGrad500: 3.2,
+      dayWash1k: 0.28, dayGrad1k: 6.0,
+      dayWash3k: 0.12, dayGrad3k: 10.0,
+    },
+  };
+}
+
+const STATION_THRESHOLDS = {
+  150: KFBG_THRESHOLDS,
+  396: midPeakThresholds("Victoria Peak starting"),
+  495: midPeakThresholds("Lion Rock starting"),
+  639: midPeakThresholds("Pat Sin Leng starting"),
+  702: midPeakThresholds("Ma On Shan starting"),
+  934: highPeakThresholds("Lantau Peak starting"),
+  957: highPeakThresholds("Tai Mo Shan starting"),
+};
+
+function getThresholds(altM) {
+  return STATION_THRESHOLDS[altM] || KFBG_THRESHOLDS;
+}
+
 function formatMessage(inside, period, altM) {
   if (inside) {
     return `Camera is inside cloud (${period}). Cloud base at or below ~${altM} m.`;
@@ -17,19 +98,20 @@ function formatMessage(inside, period, altM) {
   return `I am not inside cloud (${period}). The cloud base should be above ${altM} m.`;
 }
 
-function estimateVisibility(feats, insideCloud) {
+function estimateVisibility(feats, insideCloud, altM) {
   if (insideCloud) return "Visibility: at or below 300 m (camera in cloud/fog)";
+  const v = getThresholds(altM).vis;
   const { far_grad, far_wash, is_day, bright_spot_ratio, brightness_std } = feats;
   if (is_day < 0.5) {
-    if (bright_spot_ratio < 0.002 && brightness_std < 30) return "Visibility: at least 300 m (night, few lights visible)";
-    if (bright_spot_ratio < 0.005)  return "Visibility: at least 500 m (night)";
-    if (bright_spot_ratio < 0.010)  return "Visibility: at least 1 km (night)";
+    if (bright_spot_ratio < v.nightBspA && brightness_std < v.nightStdA) return "Visibility: at least 300 m (night, few lights visible)";
+    if (bright_spot_ratio < v.nightBspB)  return "Visibility: at least 500 m (night)";
+    if (bright_spot_ratio < v.nightBspC)  return "Visibility: at least 1 km (night)";
     return "Visibility: at least 3 km (night, valley lights clear)";
   }
-  if (far_wash > 0.50)                     return "Visibility: at least 300 m (heavy haze / low cloud nearby)";
-  if (far_wash > 0.35 || far_grad < 4.0)  return "Visibility: at least 500 m";
-  if (far_wash > 0.20 || far_grad < 8.0)  return "Visibility: at least 1 km";
-  if (far_wash > 0.08 || far_grad < 14.0) return "Visibility: at least 3 km";
+  if (far_wash > v.dayWash300)                     return "Visibility: at least 300 m (heavy haze / low cloud nearby)";
+  if (far_wash > v.dayWash500 || far_grad < v.dayGrad500)  return "Visibility: at least 500 m";
+  if (far_wash > v.dayWash1k || far_grad < v.dayGrad1k)  return "Visibility: at least 1 km";
+  if (far_wash > v.dayWash3k || far_grad < v.dayGrad3k) return "Visibility: at least 3 km";
   return "Visibility: at least 5 km (far field clear)";
 }
 
@@ -164,21 +246,24 @@ function extractFeatures(ctx, w, h) {
   };
 }
 
-function heuristicInside(feats) {
+function heuristicInside(feats, t) {
+  t = t || KFBG_THRESHOLDS;
+  const d = t.day;
+  const n = t.night;
   const day = feats.is_day >= 0.5;
   if (day) {
-    if (feats.far_grad <= 3.5 && feats.far_wash >= 0.65) return true;
-    if (feats.far_std <= 28.0 && feats.far_wash >= 0.8) return true;
-    if (feats.far_grad <= 4.3 && feats.far_wash >= 0.88 && feats.far_std <= 32.0)
+    if (feats.far_grad <= d.gradA && feats.far_wash >= d.washA) return true;
+    if (feats.far_std <= d.stdB && feats.far_wash >= d.washB) return true;
+    if (feats.far_grad <= d.gradC && feats.far_wash >= d.washC && feats.far_std <= d.stdC)
       return true;
     return false;
   }
-  if (feats.bright_spot_ratio >= 0.004) return false;
-  if (feats.bright_spot_ratio < 0.0015 && feats.brightness_std < 22.0) return true;
+  if (feats.bright_spot_ratio >= n.lightsClear) return false;
+  if (feats.bright_spot_ratio < n.bspA && feats.brightness_std < n.stdA) return true;
   if (
-    feats.bright_spot_ratio < 0.003 &&
-    feats.brightness_std < 30.0 &&
-    feats.upper_lower_contrast < 0.1
+    feats.bright_spot_ratio < n.bspB &&
+    feats.brightness_std < n.stdB &&
+    feats.upper_lower_contrast < n.ulcB
   ) {
     return true;
   }
@@ -193,11 +278,13 @@ async function analyzeFile(file, altM) {
 
   const feats  = extractFeatures(ctx, w, h);
   const period = feats.is_day >= 0.5 ? "day" : "night";
-  const inside = heuristicInside(feats);
+  const t = getThresholds(altM);
+  const inside = heuristicInside(feats, t);
   return {
     cloudMsg: formatMessage(inside, period, altM),
-    visMsg:   estimateVisibility(feats, inside),
+    visMsg:   estimateVisibility(feats, inside, altM),
     inside,
+    profile: t.profile,
     feats,
   };
 }
@@ -220,12 +307,13 @@ document.getElementById("go").addEventListener("click", async () => {
   if (!file) { setResults("Please choose a photo.", "", true); return; }
   setResults("Analyzing on your device…", "", false);
   try {
-    const { cloudMsg, visMsg, inside, feats } = await analyzeFile(file, altM);
+    const { cloudMsg, visMsg, inside, feats, profile } = await analyzeFile(file, altM);
     setResults(cloudMsg, visMsg, inside);
     const dbg = document.getElementById("dbg");
     if (dbg) {
       dbg.textContent =
-        "v6 | " + (STATIONS[altM] || altM + " m") +
+        "v8 | " + (STATIONS[altM] || altM + " m") +
+        " | " + profile +
         " | far_grad=" + feats.far_grad.toFixed(2) +
         " far_wash=" + feats.far_wash.toFixed(2) +
         " far_std=" + feats.far_std.toFixed(1) +
