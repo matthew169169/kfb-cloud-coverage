@@ -1,6 +1,6 @@
 """Predict inside-cloud and print the fixed message.
 
-Primary path: the logistic model trained on the golden set
+Primary path: the logistic model trained on combined 2016+2023 labels
 (models/cloud_logreg.json — scaler already folded into the coefficients, so
 inference is one dot product). Falls back to the heuristic rules when the
 model file is missing.

@@ -42,15 +42,23 @@ Open http://127.0.0.1:8080
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
-python3 -m src.auto_label   # extract features for all photos in image/
-python3 -m src.train        # train on data/golden_labels.csv, export JSON
+python3 -m src.auto_label                 # features for photos in image/
+PYTHONPATH=. python3 tools/train_final.py # shipped trainer (combined data)
+python3 -m src.train                      # golden-2016-only, for comparison
+python3 -m ppt_gen.generate_update        # rebuild KFB_Process_Update.pptx
 ```
 
-`data/golden_labels.csv` holds 142 hand-verified labels (the golden set);
-training uses these instead of the heuristic seed labels. The trained
-logistic model scores 93% leave-one-date-out CV accuracy on the golden set
-vs 72% for the old rules. `src.train` writes the model JSON to both
-`models/` and `docs/`.
+Shipped model (`models/` + `docs/` `cloud_logreg.json`) is trained by
+`tools/train_final.py` on **8,354 unique frames**: 142 human 2016 golden
+labels, 8,101 hourly 2023 heuristic seeds, and 111 visual 2023 overrides
+(human rows ×20). Date-grouped 80/20 holdout; shipped JSON is the train-split
+fit. The 166,772-row Jan–Apr per-minute extract is on disk but **not** in
+the shipped weights — it hurt the honest checks.
+
+Headline numbers: held-out test **96.2%** (zero missed inside-cloud),
+2016 golden-all **97.2%**, 111-photo check **86.5%** (day 98.2% / night
+75.0%) vs 73.0% for the heuristic rules and 83.8% for d413d74.
+See `docs/model_combined_report.md`.
 
 ## Notes
 

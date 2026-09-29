@@ -1,9 +1,9 @@
-"""Train the logistic model on the hand-labeled golden set.
+"""Train a logistic model on the 2016 golden set only (comparison / fallback).
 
-Features come from data/labels.csv (written by src.auto_label); labels come
-from data/golden_labels.csv (human-verified). edge_density is excluded so the
-browser needs no extra computation. The StandardScaler is folded into the
-coefficients and the model is saved as a tiny JSON for Python and JS alike.
+The shipped production trainer is tools/train_final.py (2016 golden + 2023
+hourly + 111 visual overrides, date-grouped holdout). This module remains a
+small 142-row baseline. Features come from data/labels.csv; labels from
+data/golden_labels.csv. The StandardScaler is folded into the coefficients.
 """
 from __future__ import annotations
 
