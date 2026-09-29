@@ -1,9 +1,10 @@
 """Train a logistic model on the 2016 golden set only (comparison / fallback).
 
 The shipped production trainer is tools/train_final.py (2016 golden + 2023
-hourly + 111 visual overrides, date-grouped holdout). This module remains a
-small 142-row baseline. Features come from data/labels.csv; labels from
-data/golden_labels.csv. The StandardScaler is folded into the coefficients.
+hourly + Jan–Apr minutes + 111 visual overrides, date-balanced holdout).
+This module remains a small 142-row baseline. Features come from
+data/labels.csv; labels from data/golden_labels.csv. The StandardScaler is
+folded into the coefficients.
 """
 from __future__ import annotations
 

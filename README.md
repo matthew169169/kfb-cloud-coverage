@@ -49,15 +49,14 @@ python3 -m ppt_gen.generate_update        # rebuild KFB_Process_Update.pptx
 ```
 
 Shipped model (`models/` + `docs/` `cloud_logreg.json`) is trained by
-`tools/train_final.py` on **8,354 unique frames**: 142 human 2016 golden
-labels, 8,101 hourly 2023 heuristic seeds, and 111 visual 2023 overrides
-(human rows ×20). Date-grouped 80/20 holdout; shipped JSON is the train-split
-fit. The 166,772-row Jan–Apr per-minute extract is on disk but **not** in
-the shipped weights — it hurt the honest checks.
+`tools/train_final.py` on **172,343 unique frames**: 142 human 2016 golden
+labels, 8,101 hourly 2023 heuristic seeds, 163,989 extra Jan–Apr per-minute
+frames, and 111 visual 2023 overrides. Human rows get `(1 / n_frames_on_that_date) × 20`.
+Date-grouped 80/20 holdout; shipped JSON is the **train-split fit**.
 
-Headline numbers: held-out test **96.2%** (zero missed inside-cloud),
-2016 golden-all **97.2%**, 111-photo check **86.5%** (day 98.2% / night
-75.0%) vs 73.0% for the heuristic rules and 83.8% for d413d74.
+Headline numbers: holdout test **97.8%** on 42,714 unseen-date rows;
+2016 golden-all **96.5%**; 111-photo check **86.5%** (day 96.4% / night
+76.8%) vs 83.8% for d413d74 and 73.0% for the rules.
 See `docs/model_combined_report.md`.
 
 ## Notes
